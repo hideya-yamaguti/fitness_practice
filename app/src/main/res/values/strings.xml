@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">FitnessPractice</string>
+    <string name="start_session">開始</string>
+    <string name="stop_session">終了</string>
+    <string name="logout">ログアウト</string>
+    <string name="activity_history">アクティビティ履歴</string>
+    <string name="session_history">セッション履歴</string>
+    <string name="data_source">データソース</string>
+    <string name="login_failure">ログインに失敗しました</string>
+</resources>
