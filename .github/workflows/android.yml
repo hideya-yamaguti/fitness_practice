@@ -1,82 +1,87 @@
-name: Android CI
+name: Check pull request
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+#on: push
+on: pull_request
 
 jobs:
-  build:
+  check:
+    name: Check pull request
 
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - name: set up JDK 11
-        uses: actions/setup-java@v2
+      - name: Check out
+        uses: actions/checkout@v3
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
           cache: gradle
-
+      - name: Restore gradle cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/*.gradle.kts') }}
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      - name: Build with Gradle
-        run: ./gradlew build
-
-      # 静的解析
-      - name: Lint with ktlint
-        run: ktlint --reporter=checkstyle,output=build/ktlint-report.xml
-        continue-on-error: true
-
-      # 結果の表示
-      - name: Show results on GitHub
-        uses: yutailang0119/action-ktlint@v1
+      - name: Set up Ruby
+        uses: actions/setup-ruby@v1
         with:
-          xml_path: build/ktlint-report.xml
-
-      # アーティファクトへアップロード
-      - name: Upload results Artifact
-        uses: actions/upload-artifact@v2
-        if: failure()
-        with:
-          name: results
-          path: |
-            **/build/ktlint-report.xml
-          if-no-files-found: error
-          retention-days: 14
-  ktlint:
-    runs-on: ubuntu-latest
-    steps:
-      # チェックアウト
-      - uses: actions/checkout@v2
-
-      # インストール
-      - name: Install ktlint
+          ruby-version: '2.7'
+      - name: Get gem info
+        env:
+          PACKAGES:
+            danger:8.6.1
+            danger-checkstyle_format:0.1.1
+            danger-android_lint:0.0.10
+            danger-junit:1.0.2
+        id: gem-info
         run: |
-          curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.42.1/ktlint
-          chmod a+x ktlint
-          sudo mv ktlint /usr/local/bin/
-
-      # 静的解析
-      - name: Lint with ktlint
-        run: ktlint --reporter=checkstyle,output=build/ktlint-report.xml
-        continue-on-error: true
-
-      # 結果の表示
-      - name: Show results on GitHub
-        uses: yutailang0119/action-ktlint@v1
+          echo "::set-output name=dir::$(gem environment gemdir)"
+          echo "::set-output name=packages::$PACKAGES"
+          echo "::set-output name=key::$(echo $PACKAGES | tr ' ' '-')"
+      - name: Restore gem cache
+        uses: actions/cache@v3
         with:
-          xml_path: build/ktlint-report.xml
+          path: ${{ steps.gem-info.outputs.dir }}
+          key: ${{ runner.os }}-gem-${{ steps.gem-info.outputs.key }}
 
-      # アーティファクトへアップロード
-      - name: Upload results Artifact
-        uses: actions/upload-artifact@v2
-        if: failure()
+
+
+
+
+
+
+
+
+
+
+      #- name: Build with Gradle
+      #  run: ./gradlew build
+      - name: Lint
+        run: ./gradlew lint
+        continue-on-error: false
+      - name: Spotless check
+        run: ./gradlew spotlessApply
+        continue-on-error: false
+
+      - name: suggester / spotless
+        uses: reviewdog/action-suggester@v1
         with:
-          name: results
-          path: |
-            **/build/ktlint-report.xml
-          if-no-files-found: error
-          retention-days: 14
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tool_name: spotless
+
+      - name: Unit test
+        run: ./gradlew testDebugUnitTest
+
+      - name: Danger
+        if: cancelled() != true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          gem install ${{ steps.gem-info.outputs.packages }}
+          danger --dangerfile='.github/workflows/check-pull-request.danger' --remove-previous-comments --fail-on-errors=true

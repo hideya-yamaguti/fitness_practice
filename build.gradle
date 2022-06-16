@@ -4,6 +4,67 @@ plugins {
     id 'com.android.library' version '7.1.2' apply false
     id 'org.jetbrains.kotlin.android' version '1.6.10' apply false
     id 'dagger.hilt.android.plugin' version '2.41' apply false
+    id 'com.diffplug.spotless' version '6.0.4' apply true
+}
+
+spotless {
+    //ratchetFrom 'origin/master'
+
+    kotlin {
+        target '**/*.kt'
+        targetExclude '.idea/**'
+
+        ktlint('0.43.2').userData([
+                android        : 'true',
+                disabled_rules : 'import-ordering',
+                max_line_length: 'off'
+        ])
+
+        trimTrailingWhitespace()
+        indentWithSpaces()
+        endWithNewline()
+    }
+
+    format 'testKotlin', com.diffplug.gradle.spotless.KotlinExtension, {
+        target '**/test/*.kt'
+
+        ktlint('0.43.2').userData([
+                android                             : 'true',
+                disabled_rules                      : 'import-ordering',
+                max_line_length                     : 'off',
+                ktlint_ignore_back_ticked_identifier: 'true'
+        ])
+
+        trimTrailingWhitespace()
+        indentWithSpaces()
+        endWithNewline()
+    }
+
+    format 'xml', {
+        target '**/*.xml'
+        targetExclude '.idea/**', '**/build/**'
+        trimTrailingWhitespace()
+        indentWithSpaces()
+        endWithNewline()
+    }
+
+    format 'markdown', {
+        target '**/*.md'
+        prettier([
+                'prettier'                 : '2.0.5',
+                'prettier-plugin-md-nocjsp': '1.0.2'
+        ]).config([
+                'parser': 'markdown-nocjsp'
+        ])
+    }
+
+    format 'misc', {
+        target '**/*.gradle', '**/*.properties'
+        targetExclude 'buildSrc/.gradle/**', 'build-src/**', '**/build/**'
+        trimTrailingWhitespace()
+        indentWithSpaces()
+        endWithNewline()
+    }
 }
 
 task clean(type: Delete) {
